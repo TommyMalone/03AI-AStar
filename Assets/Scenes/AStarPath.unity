@@ -129,6 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 9193830}
   - component: {fileID: 9193829}
+  - component: {fileID: 9193831}
   m_Layer: 0
   m_Name: Maze
   m_TagString: Untagged
@@ -166,6 +167,24 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &9193831
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9193827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cd9e6e4588c01ad418d312e6387fcac9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FindPathAStar
+  maze: {fileID: 9193829}
+  closedMaterial: {fileID: 2100000, guid: a39ce23f4c7304a76aef66e35714e69b, type: 2}
+  openMaterial: {fileID: 2100000, guid: 8ab3124b7e8a34ca6bb2e831a9726475, type: 2}
+  start: {fileID: 302218380737281610, guid: ef44b7d2e6e35443aab13daf5583bd3e, type: 3}
+  end: {fileID: 6856673923357348324, guid: a05f88bb7457d4e59bd0ee0e79575ce1, type: 3}
+  pathMarker: {fileID: 4872082831671335508, guid: fbc327f82b9b646dca7e0960e120ec66, type: 3}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
