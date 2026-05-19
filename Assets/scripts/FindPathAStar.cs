@@ -35,10 +35,7 @@ public class PathMarker
         }
     }
     
-    public override int GetHashCode()
-    {
-        return 0;
-    }
+    public override int GetHashCode() => location.GetHashCode();
 }
 
 public class FindPathAStar : MonoBehaviour
@@ -120,10 +117,16 @@ public class FindPathAStar : MonoBehaviour
             locations.Shuffle();
         }
 
+        
+        
         Vector3 startLocation = new Vector3(locations[0].x, 0, locations[0].z) * maze.scale;
-        _startNode = new PathMarker(new MapLocation(locations[0].x, locations[0].z), 0, 0, 0,
-            Instantiate(start, startLocation, Quaternion.identity), null);
         Vector3 goalLocation = new Vector3(locations[1].x, 0, locations[1].z) * maze.scale;
+        
+        float startLocationHValue = Vector2.Distance( new Vector2(locations[0].x, locations[0].z), new Vector2(locations[1].x, locations[1].z));
+        
+        _startNode = new PathMarker(new MapLocation(locations[0].x, locations[0].z), 0, startLocationHValue, startLocationHValue,
+            Instantiate(start, startLocation, Quaternion.identity), null);
+        
         _goalNode = new PathMarker(new MapLocation(locations[1].x, locations[1].z), 0, 0, 0,
             Instantiate(end, goalLocation, Quaternion.identity), null);
         
@@ -142,48 +145,53 @@ public class FindPathAStar : MonoBehaviour
                 _done = true;
                 return;
             }
+            
+            openSet.Remove(node);
+            closedSet.Add(node);
+            node.marker.GetComponent<Renderer>().material = closedMaterial;
 
             foreach (MapLocation direction in maze.directions)
             {
                 MapLocation neighbor = direction + node.location;
 
-                bool isNotWall = maze.map[neighbor.x, neighbor.z] != 1;
+                //Caching conditions in bools for legibility
                 bool xInBounds = (neighbor.x > 0 && neighbor.x < maze.width);
                 bool zInBounds = (neighbor.z > 0 && neighbor.z < maze.depth);
                 bool notInClosedSet = !IsClosed(neighbor);
-
-                if (isNotWall && xInBounds && zInBounds && notInClosedSet)
+                
+                if (xInBounds && zInBounds && notInClosedSet)
                 {
-                    float g = Vector2.Distance(node.location.ToVector2(), neighbor.ToVector2()) + node.g;
-                    float h = Vector2.Distance(neighbor.ToVector2(), _goalNode.location.ToVector2());
-                    float f = g + h;
-
-                    GameObject pathBlock = Instantiate(pathMarker, new Vector3(neighbor.x, 0, neighbor.z) * maze.scale,
-                        Quaternion.identity);
-
-                    TextMesh[] values = pathBlock.GetComponentsInChildren<TextMesh>();
-                    values[0].text = "g:" + g.ToString("0.00");
-                    values[1].text = "h:" + h.ToString("0.00");
-                    values[2].text = "f:" + f.ToString("0.00");
-
-                    if (!UpdateMarker(neighbor, g, h, f, node))
+                    //This check must be done after evaluating that we are in bounds to avoid out of bounds errors.
+                    bool isNotWall = maze.map[neighbor.x, neighbor.z] != 1;
+                    
+                    if (isNotWall)
                     {
-                        openSet.Add(new PathMarker(neighbor, g, h, f, pathBlock, node));
+                        float g = Vector2.Distance(node.location.ToVector2(), neighbor.ToVector2()) + node.g;
+                        float h = Vector2.Distance(neighbor.ToVector2(), _goalNode.location.ToVector2());
+                        float f = g + h;
+
+                        GameObject pathBlock = Instantiate(pathMarker,
+                            new Vector3(neighbor.x, 0, neighbor.z) * maze.scale,
+                            Quaternion.identity);
+
+                        TextMesh[] values = pathBlock.GetComponentsInChildren<TextMesh>();
+                        values[0].text = "g:" + g.ToString("0.00");
+                        values[1].text = "h:" + h.ToString("0.00");
+                        values[2].text = "f:" + f.ToString("0.00");
+
+                        if (!UpdateMarker(neighbor, g, h, f, node))
+                        {
+                            openSet.Add(new PathMarker(neighbor, g, h, f, pathBlock, node));
+                        }
                     }
                 }
             }
 
-            //Order the set by f, then secondarily by h
+            //Order the set by f, then secondarily by h to put the best candidate at the front
             openSet = openSet.OrderBy(openPathMarker => openPathMarker.f).ThenBy(openPathMarker => openPathMarker.h)
                 .ToList<PathMarker>();
-
-            PathMarker bestCandidate = openSet[0];
-            closedSet.Add(bestCandidate);
-
-            openSet.RemoveAt(0);
-            bestCandidate.marker.GetComponent<Renderer>().material = closedMaterial;
-
-            _lastMarkerEvaluated = bestCandidate;
+            
+            _lastMarkerEvaluated = openSet[0];
         }
     }
 
