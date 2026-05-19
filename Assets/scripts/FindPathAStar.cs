@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Linq;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine.InputSystem;
 
 public class PathMarker
@@ -57,7 +58,7 @@ public class FindPathAStar : MonoBehaviour
     private PathMarker _goalNode;
     private PathMarker _startNode;
 
-    private PathMarker _lastPos;
+    private PathMarker _lastMarkerEvaluated;
     private bool _done = false;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -73,21 +74,36 @@ public class FindPathAStar : MonoBehaviour
         {
             BeginSearch();
         }
+        if (InputSystem.actions["Interact"].WasReleasedThisFrame() || InputSystem.actions["Jump"].IsPressed())
+        {
+            if (!_done)
+            {
+                Search(_lastMarkerEvaluated);
+            }
+            else
+            {
+                GetPathToLastEvaluatedMarker();
+            }
+        }
     }
 
-    void RemoveAllMarkers()
+    void RemoveAllOtherMarkers(List<GameObject> keptMarkers = null)
     {
         GameObject[] markers = GameObject.FindGameObjectsWithTag("marker");
-        foreach (var marker in markers)
+        foreach (GameObject marker in markers)
         {
-            Destroy(marker);
+            if (keptMarkers == null || !keptMarkers.Contains(marker))
+            {
+                Destroy(marker);
+            }
+            
         }
     }
 
     void BeginSearch()
     {
         _done = false;
-        RemoveAllMarkers();
+        RemoveAllOtherMarkers();
         
         //Acquire list of valid locations in the maze.
         List<MapLocation> locations = new List<MapLocation>();
@@ -105,40 +121,86 @@ public class FindPathAStar : MonoBehaviour
         }
 
         Vector3 startLocation = new Vector3(locations[0].x, 0, locations[0].z) * maze.scale;
-        _startNode = new PathMarker(new MapLocation((int)(startLocation.x), (int)(startLocation.z)), 0, 0, 0,
+        _startNode = new PathMarker(new MapLocation(locations[0].x, locations[0].z), 0, 0, 0,
             Instantiate(start, startLocation, Quaternion.identity), null);
         Vector3 goalLocation = new Vector3(locations[1].x, 0, locations[1].z) * maze.scale;
-        _goalNode = new PathMarker(new MapLocation((int)(goalLocation.x), (int)(goalLocation.z)), 0, 0, 0,
+        _goalNode = new PathMarker(new MapLocation(locations[1].x, locations[1].z), 0, 0, 0,
             Instantiate(end, goalLocation, Quaternion.identity), null);
         
         openSet.Clear();
         closedSet.Clear();
         openSet.Add(_startNode);
-        _lastPos = _startNode;
+        _lastMarkerEvaluated = _startNode;
     }
 
     void Search(PathMarker node)
     {
-        if (node.Equals(_goalNode))
+        if (node != null)
         {
-            _done = true;
-            return;
-        }
-
-        foreach (MapLocation direction in maze.directions)
-        {
-            MapLocation neighbor = direction + node.location;
-            
-            if (maze.map[neighbor.x, neighbor.z] != 1 && (neighbor.x < 1 && neighbor.x >= maze.width) && (neighbor.z < 1 && neighbor.z >= maze.depth) && !IsClosed(neighbor))
+            if (node.Equals(_goalNode))
             {
-                float g = Vector2.Distance(node.location.ToVector2(), neighbor.ToVector2()) + node.g;
-                float h = Vector2.Distance(neighbor.ToVector2(), _goalNode.location.ToVector2());
-                float f = g + h;
-
-                GameObject pathBlock = Instantiate(pathMarker, new Vector3(neighbor.x, 0, neighbor.z) * maze.scale, Quaternion.identity);
+                _done = true;
+                return;
             }
-            
+
+            foreach (MapLocation direction in maze.directions)
+            {
+                MapLocation neighbor = direction + node.location;
+
+                bool isNotWall = maze.map[neighbor.x, neighbor.z] != 1;
+                bool xInBounds = (neighbor.x > 0 && neighbor.x < maze.width);
+                bool zInBounds = (neighbor.z > 0 && neighbor.z < maze.depth);
+                bool notInClosedSet = !IsClosed(neighbor);
+
+                if (isNotWall && xInBounds && zInBounds && notInClosedSet)
+                {
+                    float g = Vector2.Distance(node.location.ToVector2(), neighbor.ToVector2()) + node.g;
+                    float h = Vector2.Distance(neighbor.ToVector2(), _goalNode.location.ToVector2());
+                    float f = g + h;
+
+                    GameObject pathBlock = Instantiate(pathMarker, new Vector3(neighbor.x, 0, neighbor.z) * maze.scale,
+                        Quaternion.identity);
+
+                    TextMesh[] values = pathBlock.GetComponentsInChildren<TextMesh>();
+                    values[0].text = "g:" + g.ToString("0.00");
+                    values[1].text = "h:" + h.ToString("0.00");
+                    values[2].text = "f:" + f.ToString("0.00");
+
+                    if (!UpdateMarker(neighbor, g, h, f, node))
+                    {
+                        openSet.Add(new PathMarker(neighbor, g, h, f, pathBlock, node));
+                    }
+                }
+            }
+
+            //Order the set by f, then secondarily by h
+            openSet = openSet.OrderBy(openPathMarker => openPathMarker.f).ThenBy(openPathMarker => openPathMarker.h)
+                .ToList<PathMarker>();
+
+            PathMarker bestCandidate = openSet[0];
+            closedSet.Add(bestCandidate);
+
+            openSet.RemoveAt(0);
+            bestCandidate.marker.GetComponent<Renderer>().material = closedMaterial;
+
+            _lastMarkerEvaluated = bestCandidate;
         }
+    }
+
+    bool UpdateMarker(MapLocation position, float g, float h, float f, PathMarker parentMarker)
+    {
+        foreach (PathMarker openPathMarker in openSet)
+        {
+            if (openPathMarker.location.Equals(position))
+            {
+                openPathMarker.g = g;
+                openPathMarker.h = h;
+                openPathMarker.f = f;
+                openPathMarker.parent = parentMarker;
+                return true;
+            }
+        }
+        return false;
     }
 
     bool IsClosed(MapLocation marker)
@@ -151,5 +213,18 @@ public class FindPathAStar : MonoBehaviour
             }
         }
         return false;
+    }
+
+    void GetPathToLastEvaluatedMarker()
+    {
+        List<GameObject> path = new List<GameObject>();
+        PathMarker currentMarker = _lastMarkerEvaluated;
+        while (currentMarker != null)
+        {
+            path.Add(currentMarker.marker);
+            currentMarker = currentMarker.parent;
+        }
+        path.Add(_startNode.marker);
+        RemoveAllOtherMarkers(path);
     }
 }
