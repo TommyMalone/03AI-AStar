@@ -13,7 +13,7 @@ public class MapLocation
         z = _z;
     }
 
-    public Vector2 ToVector()
+    public Vector2 ToVector2()
     {
         return new Vector2(x, z);
     }
@@ -39,6 +39,18 @@ public class MapLocation
 public class Maze : MonoBehaviour
 {
     public List<MapLocation> directions = new List<MapLocation>() {
+                                            //Could be refactored to check diagonals. May do this in the future.
+                                            //Clockwise from top left neighbor.
+                                            // new MapLocation(-1,1),
+                                            // new MapLocation(0,1),
+                                            // new MapLocation(1,1),
+                                            // new MapLocation(1,0),
+                                            // new MapLocation(1,-1),
+                                            // new MapLocation(0,-1),
+                                            // new MapLocation(-1,-1),
+                                            // new MapLocation(-1,0) };
+                                            
+                                            //Does not check diagonals.
                                             new MapLocation(1,0),
                                             new MapLocation(0,1),
                                             new MapLocation(-1,0),
