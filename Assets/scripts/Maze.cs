@@ -4,13 +4,13 @@ using UnityEngine;
 
 public class MapLocation       
 {
-    public int x;
-    public int z;
+    public readonly int x;
+    public readonly int z;
 
-    public MapLocation(int _x, int _z)
+    public MapLocation(int inX, int inZ)
     {
-        x = _x;
-        z = _z;
+        x = inX;
+        z = inZ;
     }
 
     public Vector2 ToVector2()
@@ -18,15 +18,18 @@ public class MapLocation
         return new Vector2(x, z);
     }
 
-    public static MapLocation operator +(MapLocation a, MapLocation b)
-       => new MapLocation(a.x + b.x, a.z + b.z);
+    public static MapLocation operator +(MapLocation a, MapLocation b) => new MapLocation(a.x + b.x, a.z + b.z);
 
     public override bool Equals(object obj)
     {
-        if ((obj == null) || !this.GetType().Equals(obj.GetType()))
+        if ((obj == null) || !(GetType() == obj.GetType()))
+        {
             return false;
+        }
         else
-            return x == ((MapLocation)obj).x && z == ((MapLocation)obj).z;
+        {
+            return (x == ((MapLocation)obj).x && z == ((MapLocation)obj).z);
+        }
     }
 
     public override int GetHashCode()
@@ -61,36 +64,41 @@ public class Maze : MonoBehaviour
     public int scale = 6;
 
     // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
         InitialiseMap();
         Generate();
         DrawMap();
     }
 
-    void InitialiseMap()
+    private void InitialiseMap()
     {
         map = new byte[width,depth];
         for (int z = 0; z < depth; z++)
+        {
             for (int x = 0; x < width; x++)
             {
-                    map[x, z] = 1;     //1 = wall  0 = corridor
+                map[x, z] = 1; //1 = wall  0 = corridor
             }
+        }
     }
 
-    public virtual void Generate()
+    protected virtual void Generate()
     {
         for (int z = 0; z < depth; z++)
+        {
             for (int x = 0; x < width; x++)
             {
-               if(Random.Range(0,100) < 50)
-                 map[x, z] = 0;     //1 = wall  0 = corridor
+                if (Random.Range(0, 100) < 50)
+                    map[x, z] = 0; //1 = wall  0 = corridor
             }
+        }
     }
 
     void DrawMap()
     {
         for (int z = 0; z < depth; z++)
+        {
             for (int x = 0; x < width; x++)
             {
                 if (map[x, z] == 1)
@@ -101,9 +109,10 @@ public class Maze : MonoBehaviour
                     wall.transform.position = pos;
                 }
             }
+        }
     }
 
-    public int CountSquareNeighbours(int x, int z)
+    protected int CountSquareNeighbours(int x, int z)
     {
         int count = 0;
         if (x <= 0 || x >= width - 1 || z <= 0 || z >= depth - 1) return 5;
@@ -114,7 +123,7 @@ public class Maze : MonoBehaviour
         return count;
     }
 
-    public int CountDiagonalNeighbours(int x, int z)
+    private int CountDiagonalNeighbours(int x, int z)
     {
         int count = 0;
         if (x <= 0 || x >= width - 1 || z <= 0 || z >= depth - 1) return 5;
@@ -125,7 +134,7 @@ public class Maze : MonoBehaviour
         return count;
     }
 
-    public int CountAllNeighbours(int x, int z)
+    protected int CountAllNeighbours(int x, int z)
     {
         return CountSquareNeighbours(x,z) + CountDiagonalNeighbours(x,z);
     }

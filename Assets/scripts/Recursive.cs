@@ -4,12 +4,12 @@ using UnityEngine;
 
 public class Recursive : Maze
 {
-    public override void Generate()
+    protected override void Generate()
     {
         Generate(5, 5);
     }
 
-    void Generate(int x, int z)
+    private void Generate(int x, int z)
     {
         if (CountSquareNeighbours(x, z) >= 2) return;
         map[x, z] = 0;
