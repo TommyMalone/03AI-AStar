@@ -3,29 +3,30 @@ using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
 
 public class PathMarker
 {
-    public MapLocation location;
+    public readonly MapLocation location;
     public float g;
     public float h;
     public float f;
-    public GameObject marker;
+    public readonly GameObject marker;
     public PathMarker parent;
     
-    public PathMarker(MapLocation location, float g, float h, float f, GameObject marker, PathMarker parent)
+    public PathMarker(MapLocation inLocation, float inG, float inH, float inF, GameObject inMarker, PathMarker inParent)
     {
-        this.location = location;
-        this.g = g;
-        this.h = h;
-        this.f = f;
-        this.marker = marker;
-        this.parent = parent;
+        location = inLocation;
+        g = inG;
+        h = inH;
+        f = inF;
+        marker = inMarker;
+        parent = inParent;
     }
 
     public override bool Equals(object obj)
     {
-        if ((obj == null) || !this.GetType().Equals(obj.GetType()))
+        if ((obj == null) || !(GetType() == obj.GetType()))
         {
             return false;
         }
@@ -41,28 +42,18 @@ public class PathMarker
 public class FindPathAStar : MonoBehaviour
 {
     public Maze maze;
-
+    [FormerlySerializedAs("start")] public GameObject startPrefab;
+    [FormerlySerializedAs("end")] public GameObject endPrefab;
+    public GameObject pathMarker;
     public Material closedMaterial;
     public Material openMaterial;
 
-    private List<PathMarker> openSet = new List<PathMarker>();
-    private List<PathMarker> closedSet = new List<PathMarker>();
-
-    public GameObject start;
-    public GameObject end;
-    public GameObject pathMarker;
-
+    private List<PathMarker> _openSet = new List<PathMarker>();
+    private List<PathMarker> _closedSet = new List<PathMarker>();
     private PathMarker _goalNode;
     private PathMarker _startNode;
-
     private PathMarker _lastMarkerEvaluated;
     private bool _done = false;
-
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-        
-    }
 
     // Update is called once per frame
     void Update()
@@ -86,14 +77,13 @@ public class FindPathAStar : MonoBehaviour
 
     void RemoveAllOtherMarkers(List<GameObject> keptMarkers = null)
     {
-        GameObject[] markers = GameObject.FindGameObjectsWithTag("marker");
+        GameObject[] markers = GameObject.FindGameObjectsWithTag($"marker");
         foreach (GameObject marker in markers)
         {
             if (keptMarkers == null || !keptMarkers.Contains(marker))
             {
                 Destroy(marker);
             }
-            
         }
     }
 
@@ -116,27 +106,24 @@ public class FindPathAStar : MonoBehaviour
             }
             locations.Shuffle();
         }
-
-        
         
         Vector3 startLocation = new Vector3(locations[0].x, 0, locations[0].z) * maze.scale;
-        Vector3 goalLocation = new Vector3(locations[1].x, 0, locations[1].z) * maze.scale;
-        
+        Vector3 endLocation = new Vector3(locations[1].x, 0, locations[1].z) * maze.scale;
         float startLocationHValue = Vector2.Distance( new Vector2(locations[0].x, locations[0].z), new Vector2(locations[1].x, locations[1].z));
         
-        _startNode = new PathMarker(new MapLocation(locations[0].x, locations[0].z), 0, startLocationHValue, startLocationHValue,
-            Instantiate(start, startLocation, Quaternion.identity), null);
+        GameObject start = Instantiate(startPrefab, startLocation, Quaternion.identity);
+        GameObject end = Instantiate(endPrefab, endLocation, Quaternion.identity);
         
-        _goalNode = new PathMarker(new MapLocation(locations[1].x, locations[1].z), 0, 0, 0,
-            Instantiate(end, goalLocation, Quaternion.identity), null);
+        _startNode = new PathMarker(new MapLocation(locations[0].x, locations[0].z), 0, startLocationHValue, startLocationHValue, start, null);
+        _goalNode = new PathMarker(new MapLocation(locations[1].x, locations[1].z), 0, 0, 0, end, null);
         
-        openSet.Clear();
-        closedSet.Clear();
-        openSet.Add(_startNode);
+        _openSet.Clear();
+        _closedSet.Clear();
+        _openSet.Add(_startNode);
         _lastMarkerEvaluated = _startNode;
     }
 
-    void Search(PathMarker node)
+    private void Search(PathMarker node)
     {
         if (node != null)
         {
@@ -146,9 +133,17 @@ public class FindPathAStar : MonoBehaviour
                 return;
             }
             
-            openSet.Remove(node);
-            closedSet.Add(node);
-            node.marker.GetComponent<Renderer>().material = closedMaterial;
+            _openSet.Remove(node);
+            _closedSet.Add(node);
+            if (!node.Equals(_startNode))
+            {
+                node.marker.GetComponent<Renderer>().material = closedMaterial;
+            }
+            TextMesh[] closedMarkerValues = node.marker.GetComponentsInChildren<TextMesh>();
+            foreach (TextMesh closedMarkerValue in closedMarkerValues)
+            {
+                closedMarkerValue.GetComponent<MeshRenderer>().enabled = false;
+            }
 
             foreach (MapLocation direction in maze.directions)
             {
@@ -170,9 +165,7 @@ public class FindPathAStar : MonoBehaviour
                         float h = Vector2.Distance(neighbor.ToVector2(), _goalNode.location.ToVector2());
                         float f = g + h;
 
-                        GameObject pathBlock = Instantiate(pathMarker,
-                            new Vector3(neighbor.x, 0, neighbor.z) * maze.scale,
-                            Quaternion.identity);
+                        GameObject pathBlock = Instantiate(pathMarker,new Vector3(neighbor.x, 0, neighbor.z) * maze.scale, Quaternion.identity);
 
                         TextMesh[] values = pathBlock.GetComponentsInChildren<TextMesh>();
                         values[0].text = "g:" + g.ToString("0.00");
@@ -181,23 +174,21 @@ public class FindPathAStar : MonoBehaviour
 
                         if (!UpdateMarker(neighbor, g, h, f, node))
                         {
-                            openSet.Add(new PathMarker(neighbor, g, h, f, pathBlock, node));
+                            _openSet.Add(new PathMarker(neighbor, g, h, f, pathBlock, node));
                         }
                     }
                 }
             }
-
             //Order the set by f, then secondarily by h to put the best candidate at the front
-            openSet = openSet.OrderBy(openPathMarker => openPathMarker.f).ThenBy(openPathMarker => openPathMarker.h)
-                .ToList<PathMarker>();
+            _openSet = _openSet.OrderBy(openPathMarker => openPathMarker.f).ThenBy(openPathMarker => openPathMarker.h).ToList<PathMarker>();
             
-            _lastMarkerEvaluated = openSet[0];
+            _lastMarkerEvaluated = _openSet[0];
         }
     }
 
-    bool UpdateMarker(MapLocation position, float g, float h, float f, PathMarker parentMarker)
+    private bool UpdateMarker(MapLocation position, float g, float h, float f, PathMarker parentMarker)
     {
-        foreach (PathMarker openPathMarker in openSet)
+        foreach (PathMarker openPathMarker in _openSet)
         {
             if (openPathMarker.location.Equals(position))
             {
@@ -211,11 +202,11 @@ public class FindPathAStar : MonoBehaviour
         return false;
     }
 
-    bool IsClosed(MapLocation marker)
+    private bool IsClosed(MapLocation marker)
     {
-        foreach (PathMarker pathMarker in closedSet)
+        foreach (PathMarker closedPathMarker in _closedSet)
         {
-            if (pathMarker.location.Equals(marker))
+            if (closedPathMarker.location.Equals(marker))
             {
                 return true;
             }
@@ -223,7 +214,7 @@ public class FindPathAStar : MonoBehaviour
         return false;
     }
 
-    void GetPathToLastEvaluatedMarker()
+    private void GetPathToLastEvaluatedMarker()
     {
         List<GameObject> path = new List<GameObject>();
         PathMarker currentMarker = _lastMarkerEvaluated;
